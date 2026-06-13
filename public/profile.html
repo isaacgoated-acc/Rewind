@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Profile</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="nav">
+  <div class="logo">Rewind</div>
+  <div class="tabs">
+    <a href="index.html">Home</a>
+    <a href="login.html">Logout</a>
+  </div>
+</div>
+
+<div class="container">
+  <h1>Profile</h1>
+
+  <p id="info">Loading...</p>
+
+  <h3>Avatar</h3>
+
+  <input id="hat" placeholder="Hat">
+  <input id="shirt" placeholder="Shirt">
+  <input id="accessory" placeholder="Accessory">
+
+  <button onclick="save()">Save Avatar</button>
+
+  <h3>Online Users</h3>
+  <p id="online"></p>
+</div>
+
+<script>
+const token = localStorage.getItem("token");
+
+async function load() {
+  const res = await fetch("/api/profile", {
+    headers: { "Authorization": token }
+  });
+
+  const data = await res.json();
+
+  if (data.error) {
+    info.innerText = "Not logged in";
+    return;
+  }
+
+  info.innerText = "Logged in as " + data.username;
+}
+
+async function save() {
+  await fetch("/api/avatar", {
+    method: "POST",
+    headers: {
+      "Content-Type":"application/json",
+      "Authorization": token
+    },
+    body: JSON.stringify({
+      hat: hat.value,
+      shirt: shirt.value,
+      accessory: accessory.value
+    })
+  });
+
+  alert("Saved!");
+}
+
+async function online() {
+  const res = await fetch("/api/online");
+  const data = await res.json();
+
+  online.innerText = data.onlineUsers.join(", ");
+}
+
+load();
+online();
+setInterval(online, 5000);
+</script>
+
+</body>
+</html>
