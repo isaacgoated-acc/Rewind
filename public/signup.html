@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Sign Up</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="nav">
+  <div class="logo">Rewind</div>
+  <div class="tabs">
+    <a href="index.html">Home</a>
+    <a href="login.html">Login</a>
+  </div>
+</div>
+
+<div class="container">
+  <h1>Sign Up</h1>
+
+  <input id="username" placeholder="Username">
+  <input id="email" placeholder="Email">
+  <input id="password" type="password" placeholder="Password">
+
+  <button onclick="signup()">Create Account</button>
+
+  <p id="msg"></p>
+</div>
+
+<script>
+async function signup() {
+  const res = await fetch("/api/signup", {
+    method: "POST",
+    headers: {"Content-Type":"application/json"},
+    body: JSON.stringify({
+      username: username.value,
+      email: email.value,
+      password: password.value
+    })
+  });
+
+  const data = await res.json();
+
+  if (data.error) {
+    msg.innerText = data.error;
+  } else {
+    window.location.href = "/login.html";
+  }
+}
+</script>
+
+</body>
+</html>
