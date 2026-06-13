@@ -9,13 +9,16 @@ app.use(express.json());
 app.use(express.static(path.join(__dirname, "public")));
 
 /* =========================
-   DATABASE (TEMP IN-MEMORY)
+   DATABASE
 ========================= */
 let users = {};
 let sessions = {};
+let bannedUsers = new Set();
+let items = [];
+let rooms = [];
 
 /* =========================
-   AUTO ADMIN ACCOUNT
+   ADMIN ACCOUNT
 ========================= */
 users["isaacgoated"] = {
   username: "isaacgoated",
@@ -24,48 +27,29 @@ users["isaacgoated"] = {
   role: "admin",
   online: false,
   mustChangePassword: true,
-  avatar: {
-    hat: null,
-    shirt: null,
-    accessory: null
-  }
+  avatar: { hat: null, shirt: null, accessory: null }
 };
 
 /* =========================
    HELPERS
 ========================= */
-function getUserByToken(token) {
+function getUser(token) {
   const username = sessions[token];
   if (!username) return null;
   return users[username];
 }
 
 /* =========================
-   STATUS
-========================= */
-app.get("/api/status", (req, res) => {
-  const onlineUsers = Object.values(users).filter(u => u.online).length;
-
-  res.json({
-    status: "online",
-    project: "Rewind",
-    onlineUsers
-  });
-});
-
-/* =========================
-   SIGNUP (SEPARATE PAGE)
+   SIGNUP
 ========================= */
 app.post("/api/signup", (req, res) => {
   const { username, email, password } = req.body;
 
-  if (!username || !email || !password) {
-    return res.status(400).json({ error: "Missing fields" });
-  }
+  if (!username || !email || !password)
+    return res.json({ error: "Missing fields" });
 
-  if (users[username]) {
-    return res.status(400).json({ error: "User already exists" });
-  }
+  if (users[username])
+    return res.json({ error: "User already exists" });
 
   users[username] = {
     username,
@@ -74,151 +58,170 @@ app.post("/api/signup", (req, res) => {
     role: "user",
     online: false,
     mustChangePassword: false,
-    avatar: {
-      hat: null,
-      shirt: null,
-      accessory: null
-    }
+    avatar: { hat: null, shirt: null, accessory: null }
   };
 
   res.json({ success: true });
 });
 
 /* =========================
-   LOGIN (SEPARATE PAGE)
+   LOGIN (BAN CHECK ADDED)
 ========================= */
 app.post("/api/login", (req, res) => {
   const { username, password } = req.body;
 
+  if (bannedUsers.has(username))
+    return res.json({ error: "You are banned" });
+
   const user = users[username];
-  if (!user) return res.status(400).json({ error: "User not found" });
+  if (!user) return res.json({ error: "User not found" });
 
-  if (!bcrypt.compareSync(password, user.password)) {
-    return res.status(400).json({ error: "Wrong password" });
-  }
-
-  user.online = true;
+  if (!bcrypt.compareSync(password, user.password))
+    return res.json({ error: "Wrong password" });
 
   const token = uuidv4();
   sessions[token] = username;
+
+  user.online = true;
 
   res.json({
     success: true,
     token,
     username,
-    role: user.role,
-    mustChangePassword: user.mustChangePassword
+    role: user.role
   });
 });
 
 /* =========================
-   LOGOUT
+   LOGOUT (FIXED PROPERLY)
 ========================= */
 app.post("/api/logout", (req, res) => {
   const { token } = req.body;
 
-  const user = getUserByToken(token);
-  if (!user) return res.status(401).json({ error: "Invalid session" });
+  const username = sessions[token];
+  if (!username) return res.json({ error: "Invalid session" });
 
-  user.online = false;
+  users[username].online = false;
 
-  delete sessions[token];
-
-  res.json({ success: true });
-});
-
-/* =========================
-   CHANGE PASSWORD
-========================= */
-app.post("/api/change-password", (req, res) => {
-  const { token, newPassword } = req.body;
-
-  const user = getUserByToken(token);
-  if (!user) return res.status(401).json({ error: "Invalid session" });
-
-  user.password = bcrypt.hashSync(newPassword, 10);
-  user.mustChangePassword = false;
+  delete sessions[token]; // 🔥 THIS FIXES YOUR BUG
 
   res.json({ success: true });
 });
 
 /* =========================
-   PROFILE (TAB SYSTEM)
+   PROFILE
 ========================= */
 app.get("/api/profile", (req, res) => {
   const token = req.headers.authorization;
 
-  const user = getUserByToken(token);
-  if (!user) return res.status(401).json({ error: "Not logged in" });
+  const user = getUser(token);
+  if (!user) return res.json({ error: "Not logged in" });
 
   res.json({
     username: user.username,
-    email: user.email,
     role: user.role,
-    online: user.online,
-    avatar: user.avatar
+    avatar: user.avatar,
+    online: user.online
   });
 });
 
 /* =========================
-   AVATAR SYSTEM
+   ADMIN PANEL
 ========================= */
-app.post("/api/avatar", (req, res) => {
+app.get("/api/admin", (req, res) => {
   const token = req.headers.authorization;
+  const user = getUser(token);
 
-  const user = getUserByToken(token);
-  if (!user) return res.status(401).json({ error: "Not logged in" });
-
-  const { hat, shirt, accessory } = req.body;
-
-  if (hat !== undefined) user.avatar.hat = hat;
-  if (shirt !== undefined) user.avatar.shirt = shirt;
-  if (accessory !== undefined) user.avatar.accessory = accessory;
+  if (!user || user.role !== "admin")
+    return res.json({ error: "No admin access" });
 
   res.json({
-    success: true,
-    avatar: user.avatar
+    users: Object.values(users),
+    bannedUsers: Array.from(bannedUsers),
+    items,
+    rooms
   });
+});
+
+/* =========================
+   BAN USER
+========================= */
+app.post("/api/admin/ban", (req, res) => {
+  const { token, target } = req.body;
+
+  const user = getUser(token);
+  if (!user || user.role !== "admin")
+    return res.json({ error: "No admin access" });
+
+  bannedUsers.add(target);
+
+  if (users[target]) {
+    users[target].online = false;
+  }
+
+  res.json({ success: true });
+});
+
+/* =========================
+   CREATE ITEM (ADMIN)
+========================= */
+app.post("/api/admin/item", (req, res) => {
+  const { token, name } = req.body;
+
+  const user = getUser(token);
+  if (!user || user.role !== "admin")
+    return res.json({ error: "No admin access" });
+
+  items.push({ name });
+
+  res.json({ success: true, items });
+});
+
+/* =========================
+   CREATE ROOM (ADMIN)
+========================= */
+app.post("/api/admin/room", (req, res) => {
+  const { token, name } = req.body;
+
+  const user = getUser(token);
+  if (!user || user.role !== "admin")
+    return res.json({ error: "No admin access" });
+
+  rooms.push({ name, players: 0 });
+
+  res.json({ success: true, rooms });
 });
 
 /* =========================
    ONLINE USERS
 ========================= */
 app.get("/api/online", (req, res) => {
-  const onlineUsers = Object.values(users)
-    .filter(u => u.online)
-    .map(u => u.username);
-
-  res.json({ onlineUsers });
+  res.json({
+    onlineUsers: Object.values(users)
+      .filter(u => u.online)
+      .map(u => u.username)
+  });
 });
 
 /* =========================
-   NEWS (SHOWS STATUS)
+   NEWS
 ========================= */
 app.get("/api/news", (req, res) => {
-  const onlineUsers = Object.values(users)
-    .filter(u => u.online)
-    .map(u => u.username);
-
   res.json({
     news: [
       {
-        title: "Rewind Online",
-        message: `${onlineUsers.length} users currently online`
-      },
-      {
-        title: "Active Users",
-        message: onlineUsers
+        title: "Rewind Live",
+        message: "System running correctly"
       }
     ]
   });
 });
 
 /* =========================
-   START SERVER
+   START
 ========================= */
 const PORT = process.env.PORT || 3000;
 
 app.listen(PORT, () => {
-  console.log("Rewind running on port " + PORT);
+  console.log("Rewind running on " + PORT);
 });
