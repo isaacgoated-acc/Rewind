@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
   <meta charset="UTF-8">
   <title>Rewind</title>
@@ -10,30 +10,36 @@
 <div class="nav">
   <div class="logo">Rewind</div>
   <div class="tabs">
-    <a href="index.html">Home</a>
-    <a href="about.html">About</a>
-    <a href="download.html">Download</a>
-    <a href="news.html">News</a>
+    <a href="/login.html">Login</a>
+    <a href="/signup.html">Sign Up</a>
+    <a href="/profile.html">Profile</a>
   </div>
 </div>
 
-<div class="hero">
-  <h1>Rewind</h1>
-  <p>A simple social world inspired by classic Rec Room.</p>
-  <a class="btn" href="download.html">Get Started</a>
-</div>
+<div class="container">
+  <h1>Rewind Hub</h1>
 
-<div class="section">
-  <h2>Highlights</h2>
-  <div class="grid">
-    <div class="card">🎮 Social rooms</div>
-    <div class="card">🧑‍🤝‍🧑 Friends & community</div>
-    <div class="card">⚡ Lightweight experience</div>
-    <div class="card">🛠️ Creative spaces (future)</div>
+  <div class="card">🧭 Rooms (coming soon)</div>
+  <div class="card">🛍️ Shop (coming soon)</div>
+
+  <div class="card">
+    📢 News
+    <pre id="news">Loading...</pre>
   </div>
 </div>
 
-<footer>© 2026 Rewind Project</footer>
+<script>
+async function loadNews() {
+  const res = await fetch("/api/news");
+  const data = await res.json();
+
+  document.getElementById("news").innerText =
+    JSON.stringify(data.news, null, 2);
+}
+
+loadNews();
+setInterval(loadNews, 5000);
+</script>
 
 </body>
 </html>
